@@ -3,7 +3,7 @@
 sentry-hipchat
 ==============
 
-An extension for Sentry which integrates with Hipchat. It will forwards
+An extension for Sentry which integrates with Hipchat v2. It will forwards
 notifications to an hipchat room.
 
 :copyright: (c) 2011 by the Linovia, see AUTHORS for more details.
@@ -23,8 +23,8 @@ install_requires = [
 
 setup(
     name='sentry-hipchat',
-    version='0.6.0',
-    author='Xavier Ordoquy',
+    version='0.7.0',
+    author='Xavier Ordoquy, Mitchell Klijnstra',
     author_email='xordoquy@linovia.com',
     url='http://github.com/linovia/sentry-hipchat',
     description='A Sentry extension which integrates with Hipchat.',

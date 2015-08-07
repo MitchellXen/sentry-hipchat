@@ -28,20 +28,19 @@ COLORS = {
     'DEBUG': 'purple',
 }
 
-DEFAULT_ENDPOINT = "https://api.hipchat.com/v1/rooms/message"
-
+API_ENDPOINT = 'https://api.hipchat.com/v2/room/%s/notification'
 
 class HipchatOptionsForm(forms.Form):
-    token = forms.CharField(help_text="Your hipchat API v1 token.")
+    token = forms.CharField(help_text="Your hipchat API v2 token.")
     room = forms.CharField(help_text="Room name or ID.")
     notify = forms.BooleanField(help_text='Notify message in chat window.', required=False)
     include_project_name = forms.BooleanField(help_text='Include project name in message.', required=False)
     endpoint = forms.CharField(help_text="Custom API endpoint to send notifications to.", required=False,
-                               widget=forms.TextInput(attrs={'placeholder': DEFAULT_ENDPOINT}))
+                               widget=forms.TextInput(attrs={'placeholder': API_ENDPOINT}))
 
 
 class HipchatMessage(NotifyPlugin):
-    author = 'Xavier Ordoquy'
+    author = 'Xavier Ordoquy, Mitchell Klijnstra'
     author_url = 'https://github.com/linovia/sentry-hipchat'
     version = sentry_hipchat.VERSION
     description = "Event notification to Hipchat."
@@ -65,7 +64,7 @@ class HipchatMessage(NotifyPlugin):
         room = self.get_option('room', project)
         notify = self.get_option('notify', project) or False
         include_project_name = self.get_option('include_project_name', project) or False
-        endpoint = self.get_option('endpoint', project) or DEFAULT_ENDPOINT
+        endpoint = self.get_option('endpoint', project) or API_ENDPOINT
 
         if token and room:
             self.send_payload(
@@ -89,7 +88,7 @@ class HipchatMessage(NotifyPlugin):
         include_project_name = self.get_option('include_project_name', project) or False
         level = group.get_level_display().upper()
         link = group.get_absolute_url()
-        endpoint = self.get_option('endpoint', project) or DEFAULT_ENDPOINT
+        endpoint = self.get_option('endpoint', project) or API_ENDPOINT
 
 
         if token and room:
@@ -109,22 +108,24 @@ class HipchatMessage(NotifyPlugin):
 
 
     def send_payload(self, endpoint, token, room, message, notify, color='red'):
-        values = {
-            'auth_token': token,
-            'room_id': room.encode('u8'),
-            'from': 'Sentry',
-            'message': message.encode('u8'),
-            'notify': int(notify),
-            'color': color,
+        get_values = {
+            'auth_token': token
         }
-        data = urllib.urlencode(values)
-        request = urllib2.Request(endpoint, data)
+        post_values = {
+            'message': message.encode('u8'),
+            'notify': bool(notify),
+            'color': color,
+            'message_format': 'html'
+        }
+        clean_endpoint = endpoint % (room.encode('u8')) + '?' + urllib.urlencode(get_values)
+        request = urllib2.Request(clean_endpoint, json.dumps(post_values))
+        request.add_header('Content-Type', 'application/json')
         response = urllib2.urlopen(request, timeout=self.timeout)
-        raw_response_data = response.read()
-        response_data = json.loads(raw_response_data)
-        if 'status' not in response_data:
+        http_code = response.getcode()
+
+        if 401 == http_code:
             logger = logging.getLogger('sentry.plugins.hipchat')
-            logger.error('Unexpected response')
-        if response_data['status'] != 'sent':
+            logger.error('Security token not accepted for supplied room ID')
+        if 204 != http_code:
             logger = logging.getLogger('sentry.plugins.hipchat')
-            logger.error('Event was not sent to hipchat')
+            logger.error('Event could not be sent to hipchat')
